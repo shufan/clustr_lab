@@ -6,6 +6,7 @@ import random
 import getopt
 import heapq
 import cProfile
+from mpi4py import MPI
 from sets import Set
 
 def usage():
@@ -68,6 +69,18 @@ class Cluster:
         centroid_coords = [reduce_coord(i)/len(self.points) for i in range(self.dimension)]
         return tuple(centroid_coords)
 
+def partition(lst, n, needIndices=False):
+    ''' partitioning code from http://stackoverflow.com/questions/2659900/
+    python-slicing-a-list-into-n-nearly-equal-length-partitions'''
+    division = len(lst) / float(n)
+    chunkList = [lst[int(round(division * i)): int(round(division * (i + 1)))] for i in xrange(n)]
+    if needIndices:
+        chunkIndexList = []
+        for i in xrange(0,n):
+            chunkIndexList.append(int(round(i * division)))
+        return (chunkList, chunkIndexList)
+    return chunkList
+
 def kmeans(points, k, var_cutoff):
     pointsSet = Set(points)
     initial = []
@@ -83,24 +96,76 @@ def kmeans(points, k, var_cutoff):
             toRemove = heapq.heappop(distHeap).point
             pointsSet.remove(toRemove)
     centroids = [Cluster([p]) for p in initial]
+
+    # mpi communicator
+    comm = MPI.COMM_WORLD
+
+    mpirank = comm.Get_rank()
+    mpisize = comm.Get_size()
+
     while True:
-        clusters = [[] for c in centroids]
-        for p in points:
+        clusters = [c for c in centroids]
+        # broadcast clusters and scatter the data among processors
+        clusters = comm.bcast(clusters, root=0)
+        scatteredPoints = comm.scatter(partition(points, mpisize), root=0)
+        # initialize empty map of points to their nearest cluster
+        chunkedPtClstrMap = {}
+        # build map of points to clusters
+        for p in scatteredPoints:
             index = 0
             smallest_distance = float('inf')
-            for i in range(len(centroids)):
-                distance = getDistance(p, centroids[i].centroid)
+            for i in range(len(clusters)):
+                distance = getDistance(p, clusters[i].centroid)
                 if distance < smallest_distance:
                     smallest_distance = distance
                     index = i
-            clusters[index].append(p)
-        max_centroidvar = float('-inf')
-        for i in range(len(centroids)):
-            var = centroids[i].update(clusters[i])
-            max_centroidvar = max(max_centroidvar, var)
-        if max_centroidvar < var_cutoff:
+            chunkedPtClstrMap.setdefault(index, []).append(p)
+        # gather all mappings into a list of mappings
+        chunkedPtClstrMap = comm.gather(chunkedPtClstrMap, root=0)
+
+        ptClstrMap = {}
+        if mpirank == 0:
+            for m in chunkedPtClstrMap:
+                for key in m.keys():
+                    if ptClstrMap.setdefault(key, Set(m.get(key, []))) != Set(m.get(key, [])):
+                        ptClstrMap[key].update(Set(m.get(key, [])))
+        # print 'PtClstrMap mpirank:' + str(mpirank) + '\n' + str(ptClstrMap)
+        ptClstrMap = comm.bcast(ptClstrMap, root=0)
+        print 'cluster mappings...\n' + str(ptClstrMap)
+
+        (chunkedClusters, procIndices) = partition(clusters, mpisize, True)
+        # print 'chunkedClusters + mpirank:' + str(mpirank) + '\n' + str(chunkedClusters)
+        scatteredClusters = comm.scatter(chunkedClusters, root=0)
+        procIndices = comm.bcast(procIndices, root=0)
+        # print 'ORIGINAL scatteredClusters mpirank:' + str(mpirank) + '\n' + str(scatteredClusters)
+        for i in range(len(scatteredClusters)):
+            scatteredClusters[i] = []
+            [scatteredClusters[i].append(p) for p in ptClstrMap.get(procIndices[mpirank]+i, [])]
+        # print 'scatteredClusters mpirank:' + str(mpirank) + '\n' + str(scatteredClusters)
+
+
+        gatheredClusters = comm.gather(scatteredClusters, root=0)
+        if mpirank == 0:
+            gatheredClusters = reduce(lambda x, y: x+y, gatheredClusters)
+
+        # print 'gatheredClusters mpirank:' + str(mpirank) + '\n' + str(gatheredClusters)
+        done = False
+
+        if mpirank == 0:
+            max_centroidvar = float('-inf')
+            for i in range(len(centroids)):
+                var = centroids[i].update(gatheredClusters[i])
+                max_centroidvar = max(max_centroidvar, var)
+            if max_centroidvar < var_cutoff:
+                done = True
+
+        done = comm.bcast(done, root=0)
+        if done:
             break
-    return centroids
+    if mpirank == 0:
+        return centroids
+    else:
+        return []
 
 def getDistance(x, y):
     if len(x) != len(y): raise Exception("coordinates not in same dimension")
@@ -109,7 +174,7 @@ def getDistance(x, y):
 
 def main():
     k, var_cutoff, inputname = handleArgs(sys.argv)
-    #read points from input file
+    # read points from input file
     inputfile = open(inputname, "rb")
     inputstream = csv.reader(inputfile)
     rownum = 0
@@ -125,6 +190,7 @@ def main():
         point = tuple([x,y])
         points.append(point)
     inputfile.close()
+
     clusters = kmeans(points, k, var_cutoff)
 
     for i,c in enumerate(clusters):
@@ -134,7 +200,8 @@ def main():
             count += 1
         print 'cluster ' + str(i) +': ' + str(count)
 if __name__ == "__main__":
-    cPorfile.run("main()")
+    cProfile.run("main()")
+
 
 
 

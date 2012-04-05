@@ -6,6 +6,7 @@ import getopt
 import csv
 import heapq
 import cProfile
+from mpi4py import MPI
 from sets import Set
 
 bases = ['A', 'C', 'G', 'T']
@@ -98,30 +99,17 @@ class Cluster:
                 centroid_strand.append(mostCommon[0])
         return tuple(centroid_strand)
 
-# #creates a centroid with a given length, by randomly selecting bases
-# def createCentroid(dnaLength):
-#    dna = []
-#    for j in range(dnaLength):
-#        dna.append(random.choice(bases))
-#    return dna
-
-# #returns the similarity between two given centroids: 'centroid' & 'pair'
-# def similarity(centroid, pair, dnaLength):
-#    sameCount = 0
-#    for i in range(dnaLength):
-#       if centroid[i] == pair[i]:
-#          sameCount += 1
-#    return sameCount
-
-# #returns the most similarities between a given centroid and
-# #all other existing centroids
-# def maxSimilarity(centroid, initial, dnaLength):
-#    maxSim = 0
-#    for pair in initial:
-#       sim = similarity(centroid, pair, dnaLength)
-#       if sim > maxSim:
-#          maxSim = sim
-#    return maxSim
+def partition(lst, n, needIndices=False):
+    ''' partitioning code from http://stackoverflow.com/questions/2659900/
+    python-slicing-a-list-into-n-nearly-equal-length-partitions'''
+    division = len(lst) / float(n)
+    chunkList = [lst[int(round(division * i)): int(round(division * (i + 1)))] for i in xrange(n)]
+    if needIndices:
+        chunkIndexList = []
+        for i in xrange(0,n):
+            chunkIndexList.append(int(round(i * division)))
+        return (chunkList, chunkIndexList)
+    return chunkList
 
 def kmeans(dnastrands, k, var_cutoff, dnaLength):
     strandsSet = Set(dnastrands)
@@ -139,24 +127,79 @@ def kmeans(dnastrands, k, var_cutoff, dnaLength):
             strandsSet.remove(toRemove)
     # run k means on initial centroids until cutoff_var reached
     centroids = [Cluster([d]) for d in initial]
+    # mpi communicator
+    comm = MPI.COMM_WORLD
+
+    mpirank = comm.Get_rank()
+    mpisize = comm.Get_size()
+
     while True:
-        clusters = [[] for c in centroids]
-        for d in dnastrands:
+        clusters = [c for c in centroids]
+        clusters = comm.bcast(clusters, root=0)
+        scatteredStrands = comm.scatter(partition(dnastrands, mpisize), root=0)
+        chunkedStrandClstrMap = {}
+        for d in scatteredStrands:
             index = 0
             smallest_distance = float('inf')
-            for i in range(len(centroids)):
-                distance = getDistance(d, centroids[i].centroid)
+            for i in range(len(clusters)):
+                distance = getDistance(d, clusters[i].centroid)
                 if distance < smallest_distance:
                     smallest_distance = distance
                     index = i
-            clusters[index].append(d)
-        max_centroidvar = float('-inf')
-        for i in range(len(centroids)):
-            var = centroids[i].update(clusters[i])
-            max_centroidvar = max(max_centroidvar, var)
-        if max_centroidvar < var_cutoff:
+                    # if index == 0:
+                    #     print 'HAS 0\n'
+                    # elif index == 1:
+                    #     print 'HAS 1\n'
+                    # elif index == 2:
+                    #     print 'HAS 2\n'
+                    # elif index == 3:
+                    #     print 'HAS 3\n'
+                    # elif index == 4:
+                    #     print 'HAS 4\n'
+            chunkedStrandClstrMap.setdefault(index, []).append(d)
+            # print 'this should never be 0: count for cluster ' + str(index) + ' --->' + str(len(chunkedStrandClstrMap[index]))
+        # for i in range(len(centroids)):
+            # print 'number in cluster' + str(i) + 'for this chunk' + str(len(chunkedStrandClstrMap[i]))
+        chunkedStrandClstrMap = comm.gather(chunkedStrandClstrMap, root=0)
+
+        strandClstrMap = {}
+        if mpirank == 0:
+            for m in chunkedStrandClstrMap:
+                for key in m.keys():
+                    if strandClstrMap.setdefault(key, Set(m.get(key, []))) != Set(m.get(key, [])):
+                        strandClstrMap[key].update(Set(m.get(key, [])))
+            # print 'cluster mappings lengths...' + str(len(strandClstrMap[4]))
+        strandClstrMap = comm.bcast(strandClstrMap, root=0)
+
+        (chunkedClusters, procIndices) = partition(clusters, mpisize, True)
+        scatteredClusters = comm.scatter(chunkedClusters, root=0)
+        procIndices = comm.bcast(procIndices, root=0)
+        for i in range(len(scatteredClusters)):
+            scatteredClusters[i] = []
+            [scatteredClusters[i].append(d) for d in strandClstrMap.get(procIndices[mpirank]+i, [])]
+
+        gatheredClusters = comm.gather(scatteredClusters, root=0)
+        if mpirank == 0:
+            gatheredClusters = reduce(lambda x, y: x+y, gatheredClusters)
+
+        done = False
+
+        if mpirank == 0:
+            max_centroidvar = float('-inf')
+            for i in range(len(centroids)):
+                # print 'updating with...' + str(gatheredClusters[i]) + 'on iteration' + str(i)
+                var = centroids[i].update(gatheredClusters[i])
+                max_centroidvar = max(max_centroidvar, var)
+            if max_centroidvar < var_cutoff:
+                done = True
+
+        done = comm.bcast(done, root=0)
+        if done:
             break
-    return centroids
+    if mpirank == 0:
+        return centroids
+    else:
+        return []
 
 def getDistance(s1, s2):
     # find hamming distance between s1 and s2
