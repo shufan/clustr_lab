@@ -55,8 +55,8 @@ class heapPoint:
         return cmp(self.value, obj.value)
 
 '''
-A class to represent Clusters of data points. each cluster contains centroids
-and data points belonging to the cluster
+A class to represent Clusters of data points. each cluster contains
+data points belonging to the cluster
 '''
 class Cluster:
     def __init__(self, points):

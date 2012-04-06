@@ -57,8 +57,8 @@ class heapStrand:
         return cmp(self.value, obj.value)
 
 '''
-A class to represent Clusters of dna strands. each cluster contains centroids
-and dna strands belonging to the cluster
+A class to represent Clusters of dna strands. each cluster contains
+dna strands belonging to the cluster
 '''
 class Cluster:
     def __init__(self, dnastrands):
