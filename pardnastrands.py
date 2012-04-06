@@ -1,3 +1,5 @@
+# Tony Zhang (tszhang) & Dixie Kee (dkee)
+
 import sys
 import math
 import random
@@ -67,7 +69,8 @@ class Cluster:
         self.dnastrands = dnastrands
         self.dimension = len(dnastrands[0])
         for d in dnastrands:
-            if len(d) != self.dimension: raise Exception("strands not all of same length")
+            if len(d) != self.dimension:
+		raise Exception("strands not all of same length")
         self.centroid = self.calculateCentroid()
     def __repr__(self):
         return str(self.dnastrands)
@@ -117,7 +120,8 @@ def partition(lst, n, needIndices=False):
     python-slicing-a-list-into-n-nearly-equal-length-partitions
     description of function in the url above'''
     division = len(lst) / float(n)
-    chunkList = [lst[int(round(division * i)): int(round(division * (i + 1)))] for i in xrange(n)]
+    chunkList = [lst[int(round(division * i)): \
+			int(round(division * (i + 1)))] for i in xrange(n)]
     if needIndices:
         chunkIndexList = []
         for i in xrange(0,n):
@@ -184,7 +188,8 @@ def kmeans(dnastrands, k, var_cutoff, dnaLength):
         if mpirank == 0:
             for m in chunkedStrandClstrMap:
                 for key in m.keys():
-                    if strandClstrMap.setdefault(key, Set(m.get(key, []))) != Set(m.get(key, [])):
+                    if strandClstrMap.setdefault(key, Set(m.get(key, []))) \
+							!= Set(m.get(key, [])):
                         strandClstrMap[key].update(Set(m.get(key, [])))
         # broadcast the map of clusters and their strands to all the machines
         strandClstrMap = comm.bcast(strandClstrMap, root=0)
@@ -197,7 +202,8 @@ def kmeans(dnastrands, k, var_cutoff, dnaLength):
         # add the proper strands for each cluster to the cluster
         for i in range(len(scatteredClusters)):
             scatteredClusters[i] = []
-            [scatteredClusters[i].append(d) for d in strandClstrMap.get(procIndices[mpirank]+i, [])]
+            [scatteredClusters[i].append(d) \
+			for d in strandClstrMap.get(procIndices[mpirank]+i, [])]
 
         # gather the updated clusters into a list of lists of clusters
         gatheredClusters = comm.gather(scatteredClusters, root=0)
@@ -214,7 +220,8 @@ def kmeans(dnastrands, k, var_cutoff, dnaLength):
             for i in range(len(centroids)):
                 var = centroids[i].update(gatheredClusters[i])
                 max_centroidvar = max(max_centroidvar, var)
-            # algo is finished when variance threshold is satisfied in all clusters
+            # algo is finished when variance threshold is 
+	    # satisfied in all clusters
             if max_centroidvar < var_cutoff:
                 done = True
         # broadcast to all machines that the algorithm is done
@@ -231,7 +238,6 @@ def kmeans(dnastrands, k, var_cutoff, dnaLength):
 Returns the Hamming Distance between two given strands
 '''
 def getDistance(s1, s2):
-    # find hamming distance between s1 and s2
     if len(s1) != len(s2): raise Exception("dnastrands are not the same length")
     diff = 0
     for i in range(len(s1)):

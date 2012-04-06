@@ -1,3 +1,5 @@
+# Tony Zhang (tszhang) & Dixie Kee (dkee)
+
 import sys
 import math
 import random

@@ -1,3 +1,5 @@
+# Tony Zhang (tszhang) & Dixie Kee (dkee)
+
 import sys
 import math
 import csv
@@ -69,14 +71,17 @@ class Cluster:
         self.centroid = self.calculateCentroid()
     def __repr__(self):
         return str(self.points)
+    # when points are added to clusters, centroids need to be updated
     def update(self, points):
         old_centroid = self.centroid
         self.points = points
         self.centroid = self.calculateCentroid()
         return getDistance(old_centroid, self.centroid)
+    # calculates the centroid of the cluster based on all data points in it
     def calculateCentroid(self):
         reduce_coord = lambda i:reduce(lambda x,p : x + p[i],self.points,0.0)
-        centroid_coords = [reduce_coord(i)/len(self.points) for i in range(self.dimension)]
+        centroid_coords = [reduce_coord(i)/len(self.points) \
+						for i in range(self.dimension)]
         return tuple(centroid_coords)
 
 def partition(lst, n, needIndices=False):
@@ -84,7 +89,8 @@ def partition(lst, n, needIndices=False):
     python-slicing-a-list-into-n-nearly-equal-length-partitions
     description of function in the url above'''
     division = len(lst) / float(n)
-    chunkList = [lst[int(round(division * i)): int(round(division * (i + 1)))] for i in xrange(n)]
+    chunkList = [lst[int(round(division * i)): \
+			int(round(division * (i + 1)))] for i in xrange(n)]
     if needIndices:
         chunkIndexList = []
         for i in xrange(0,n):
@@ -135,7 +141,7 @@ def kmeans(points, k, var_cutoff):
         # build a map on each machine
         for p in scatteredPoints:
             index = 0
-            # calculate the distance from that point to all strands
+            # calculate the distance from that point to all points
             smallest_distance = float('inf')
             for i in range(len(clusters)):
                 distance = getDistance(p, clusters[i].centroid)
@@ -150,7 +156,8 @@ def kmeans(points, k, var_cutoff):
         if mpirank == 0:
             for m in chunkedPtClstrMap:
                 for key in m.keys():
-                    if ptClstrMap.setdefault(key, Set(m.get(key, []))) != Set(m.get(key, [])):
+                    if ptClstrMap.setdefault(key, Set(m.get(key, []))) != \
+							Set(m.get(key, [])):
                         ptClstrMap[key].update(Set(m.get(key, [])))
         # broadcast the map of clusters and their points to all the machines
         ptClstrMap = comm.bcast(ptClstrMap, root=0)
@@ -163,7 +170,8 @@ def kmeans(points, k, var_cutoff):
         # add the proper points for each cluster to the cluster
         for i in range(len(scatteredClusters)):
             scatteredClusters[i] = []
-            [scatteredClusters[i].append(p) for p in ptClstrMap.get(procIndices[mpirank]+i, [])]
+            [scatteredClusters[i].append(p) \
+			for p in ptClstrMap.get(procIndices[mpirank]+i, [])]
 
         # gather the updated clusters into a list of lists of clusters
         gatheredClusters = comm.gather(scatteredClusters, root=0)
@@ -180,7 +188,8 @@ def kmeans(points, k, var_cutoff):
             for i in range(len(centroids)):
                 var = centroids[i].update(gatheredClusters[i])
                 max_centroidvar = max(max_centroidvar, var)
-            # algo is finished when variance threshold is satisfied in all clusters
+            # algo is finished when variance threshold is satisfied
+	    # in all clusters
             if max_centroidvar < var_cutoff:
                 done = True
         # broadcast to all machines that the algorithm is done
