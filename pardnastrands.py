@@ -201,7 +201,7 @@ def kmeans(dnastrands, k, var_cutoff, dnaLength):
 
         # gather the updated clusters into a list of lists of clusters
         gatheredClusters = comm.gather(scatteredClusters, root=0)
-        if mpirank == 0
+        if mpirank == 0:
             # reduce it to a list of clusters
             gatheredClusters = reduce(lambda x, y: x+y, gatheredClusters)
 
