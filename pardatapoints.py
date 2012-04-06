@@ -1,6 +1,5 @@
 import sys
 import math
-import numpy
 import csv
 import random
 import getopt
@@ -71,7 +70,7 @@ class Cluster:
 
 def partition(lst, n, needIndices=False):
     ''' partitioning code from http://stackoverflow.com/questions/2659900/
-    python-slicing-a-list-into-n-nearly-equal-length-partitions'''
+    python-slicing-a-list-into-n-nearly-equal-length-partitions '''
     division = len(lst) / float(n)
     chunkList = [lst[int(round(division * i)): int(round(division * (i + 1)))] for i in xrange(n)]
     if needIndices:
@@ -129,26 +128,20 @@ def kmeans(points, k, var_cutoff):
                 for key in m.keys():
                     if ptClstrMap.setdefault(key, Set(m.get(key, []))) != Set(m.get(key, [])):
                         ptClstrMap[key].update(Set(m.get(key, [])))
-        # print 'PtClstrMap mpirank:' + str(mpirank) + '\n' + str(ptClstrMap)
         ptClstrMap = comm.bcast(ptClstrMap, root=0)
-        print 'cluster mappings...\n' + str(ptClstrMap)
 
         (chunkedClusters, procIndices) = partition(clusters, mpisize, True)
-        # print 'chunkedClusters + mpirank:' + str(mpirank) + '\n' + str(chunkedClusters)
         scatteredClusters = comm.scatter(chunkedClusters, root=0)
         procIndices = comm.bcast(procIndices, root=0)
-        # print 'ORIGINAL scatteredClusters mpirank:' + str(mpirank) + '\n' + str(scatteredClusters)
         for i in range(len(scatteredClusters)):
             scatteredClusters[i] = []
             [scatteredClusters[i].append(p) for p in ptClstrMap.get(procIndices[mpirank]+i, [])]
-        # print 'scatteredClusters mpirank:' + str(mpirank) + '\n' + str(scatteredClusters)
 
 
         gatheredClusters = comm.gather(scatteredClusters, root=0)
         if mpirank == 0:
             gatheredClusters = reduce(lambda x, y: x+y, gatheredClusters)
 
-        # print 'gatheredClusters mpirank:' + str(mpirank) + '\n' + str(gatheredClusters)
         done = False
 
         if mpirank == 0:
@@ -196,9 +189,9 @@ def main():
     for i,c in enumerate(clusters):
         count = 0
         for p in c.points:
-            print " Cluster: ",i,"\t Point:", p
+            print " Cluster: ",i+1,"\t Point:", p
             count += 1
-        print 'cluster ' + str(i) +': ' + str(count)
+        print 'Cluster ' + str(i+1) +': ' + str(count) + ' Points'
 if __name__ == "__main__":
     cProfile.run("main()")
 

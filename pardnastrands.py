@@ -1,6 +1,5 @@
 import sys
 import math
-import numpy
 import random
 import getopt
 import csv
@@ -146,20 +145,7 @@ def kmeans(dnastrands, k, var_cutoff, dnaLength):
                 if distance < smallest_distance:
                     smallest_distance = distance
                     index = i
-                    # if index == 0:
-                    #     print 'HAS 0\n'
-                    # elif index == 1:
-                    #     print 'HAS 1\n'
-                    # elif index == 2:
-                    #     print 'HAS 2\n'
-                    # elif index == 3:
-                    #     print 'HAS 3\n'
-                    # elif index == 4:
-                    #     print 'HAS 4\n'
             chunkedStrandClstrMap.setdefault(index, []).append(d)
-            # print 'this should never be 0: count for cluster ' + str(index) + ' --->' + str(len(chunkedStrandClstrMap[index]))
-        # for i in range(len(centroids)):
-            # print 'number in cluster' + str(i) + 'for this chunk' + str(len(chunkedStrandClstrMap[i]))
         chunkedStrandClstrMap = comm.gather(chunkedStrandClstrMap, root=0)
 
         strandClstrMap = {}
@@ -168,7 +154,6 @@ def kmeans(dnastrands, k, var_cutoff, dnaLength):
                 for key in m.keys():
                     if strandClstrMap.setdefault(key, Set(m.get(key, []))) != Set(m.get(key, [])):
                         strandClstrMap[key].update(Set(m.get(key, [])))
-            # print 'cluster mappings lengths...' + str(len(strandClstrMap[4]))
         strandClstrMap = comm.bcast(strandClstrMap, root=0)
 
         (chunkedClusters, procIndices) = partition(clusters, mpisize, True)
@@ -187,7 +172,6 @@ def kmeans(dnastrands, k, var_cutoff, dnaLength):
         if mpirank == 0:
             max_centroidvar = float('-inf')
             for i in range(len(centroids)):
-                # print 'updating with...' + str(gatheredClusters[i]) + 'on iteration' + str(i)
                 var = centroids[i].update(gatheredClusters[i])
                 max_centroidvar = max(max_centroidvar, var)
             if max_centroidvar < var_cutoff:
@@ -228,8 +212,8 @@ def main():
     for i,c in enumerate(clusters):
         count = 0
         for d in c.dnastrands:
-            print " Cluster: ",i,"\t DNA Strand:", d
+            print " Cluster: ",i+1,"\t DNA Strand:", d
             count += 1
-        print 'cluster ' + str(i) +': ' + str(count)
+        print 'cluster ' + str(i+1) +': ' + str(count) + ' Strands'
 if __name__ == "__main__":
     cProfile.run("main()")

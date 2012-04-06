@@ -1,6 +1,5 @@
 import sys
 import math
-import numpy
 import random
 import getopt
 import csv
@@ -195,9 +194,8 @@ def main():
     for i,c in enumerate(clusters):
         count = 0
         for d in c.dnastrands:
-            print " Cluster: ",i,"\t DNA Strand:", d
+            print " Cluster: ",i+1,"\t DNA Strand:", d
             count += 1
-        print 'cluster ' + str(i) +': ' + str(count)
-
+        print 'cluster ' + str(i+1) +': ' + str(count) + ' Strands'
 if __name__ == "__main__":
     cProfile.run("main()")

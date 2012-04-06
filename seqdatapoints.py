@@ -1,6 +1,5 @@
 import sys
 import math
-import numpy
 import csv
 import random
 import getopt
@@ -166,10 +165,9 @@ def main():
     for i,c in enumerate(clusters):
         count = 0
         for p in c.points:
-            print " Cluster: ",i,"\t Point:", p
+            print " Cluster: ",i+1,"\t Point:", p
             count += 1
-        print 'cluster ' + str(i) +': ' + str(count)
-
+        print 'Cluster ' + str(i+1) +': ' + str(count) + ' Points'
 if __name__ == "__main__":
-    cPorfile.run("main()")
+    cProfile.run("main()")
 
